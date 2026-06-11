@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 记忆力大冒险</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* ========== 基础样式 ========== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ========== 卡片翻转动画 ========== */
+        .card {
+            perspective: 1000px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .card:hover:not(.flipped):not(.matched) {
+            transform: scale(1.05);
+        }
+
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+        }
+
+        .card.flipped .card-inner,
+        .card.matched .card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .card-front,
+        .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .card-front {
+            background: linear-gradient(145deg, #f6d365 0%, #fda085 100%);
+            transform: rotateY(180deg);
+            font-size: 3.5rem;
+        }
+
+        .card-back {
+            background: linear-gradient(145deg, #a8edea 0%, #fed6e3 100%);
+        }
+
+        .card-back::after {
+            content: '❓';
+            font-size: 2.5rem;
+        }
+
+        /* ========== 匹配成功的动画 ========== */
+        .card.matched {
+            animation: matchBounce 0.6s ease;
+        }
+
+        .card.matched .card-front {
+            background: linear-gradient(145deg, #a8ff78 0%, #78ffd6 100%);
+            box-shadow: 0 0 30px rgba(120, 255, 214, 0.5);
+        }
+
+        @keyframes matchBounce {
+            0%, 100% { transform: scale(1); }
+            30% { transform: scale(1.2); }
+            60% { transform: scale(0.95); }
+        }
+
+        /* ========== 遮罩层（防乱点） ========== */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            z-index: 100;
+            cursor: not-allowed;
+            display: none;
+        }
+
+        .overlay.active {
+            display: block;
+        }
+
+        /* ========== 放大镜闪烁动画 ========== */
+        .card.peeking .card-inner {
+            animation: peekFlash 1.5s ease-in-out;
+        }
+
+        @keyframes peekFlash {
+            0%, 100% { transform: rotateY(180deg); }
+            25%, 75% { transform: rotateY(180deg) scale(1.1); }
+            50% { transform: rotateY(180deg) scale(1); opacity: 0.8; }
+        }
+
+        /* ========== 星星样式 ========== */
+        .star {
+            display: inline-block;
+            font-size: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .star.used {
+            filter: grayscale(1);
+            opacity: 0.4;
+            transform: scale(0.8);
+        }
+
+        /* ========== 粒子效果容器 ========== */
+        #confetti-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* ========== Combo 显示 ========== */
+        .combo-text {
+            animation: comboFloat 1s ease-out forwards;
+        }
+
+        @keyframes comboFloat {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-50px) scale(1.5); }
+        }
+
+        /* ========== 按钮悬停效果 ========== */
+        .game-btn {
+            transition: all 0.2s ease;
+        }
+
+        .game-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .game-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .game-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ========== 响应式卡片大小 ========== */
+        @media (max-width: 480px) {
+            .card-front {
+                font-size: 2.5rem;
+            }
+            .card-back::after {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+
+    <!-- 防乱点遮罩层 -->
+    <div id="overlay" class="overlay"></div>
+
+    <!-- 五彩纸屑 Canvas -->
+    <canvas id="confetti-canvas"></canvas>
+
+    <!-- ==================== 游戏主界面 ==================== -->
+    <div id="game-screen" class="w-full max-w-lg mx-auto">
+        <!-- 顶部信息栏 -->
+        <div class="flex justify-between items-center mb-4 px-2">
+            <!-- 体力值（星星） -->
+            <div id="stars-container" class="flex items-center gap-1">
+                <span class="text-white text-lg font-bold mr-2">体力:</span>
+                <span id="star-0" class="star">⭐</span>
+                <span id="star-1" class="star">⭐</span>
+                <span id="star-2" class="star">⭐</span>
+                <span id="star-3" class="star">⭐</span>
+                <span id="star-4" class="star">⭐</span>
+            </div>
+            <!-- Combo 显示 -->
+            <div id="combo-display" class="text-yellow-300 font-bold text-lg hidden">
+                🔥 连击: <span id="combo-count">0</span>
+            </div>
+        </div>
+
+        <!-- 难度选择 -->
+        <div id="difficulty-select" class="flex justify-center gap-4 mb-6">
+            <button onclick="startGame('easy')" class="game-btn bg-green-400 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
+                🌟 简单模式 (4×3)
+            </button>
+            <button onclick="startGame('hard')" class="game-btn bg-orange-400 hover:bg-orange-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
+                🚀 挑战模式 (4×4)
+            </button>
+        </div>
+
+        <!-- 游戏卡片区域 -->
+        <div id="game-board" class="grid gap-3 mb-6 mx-auto" style="max-width: 400px;">
+            <!-- 卡片由 JS 动态生成 -->
+        </div>
+
+        <!-- 底部工具栏 -->
+        <div id="toolbar" class="flex justify-center gap-4 hidden">
+            <button id="magnifier-btn" onclick="useMagnifier()" class="game-btn bg-purple-400 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
+                🔍 放大镜 (1次)
+            </button>
+            <button onclick="resetGame()" class="game-btn bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
+                🔄 重新开始
+            </button>
+        </div>
+    </div>
+
+    <!-- ==================== 休息页面（体力耗尽） ==================== -->
+    <div id="rest-screen" class="hidden text-center">
+        <div class="bg-white/20 backdrop-blur-sm rounded-3xl p-8 max-w-md mx-auto shadow-2xl">
+            <div class="text-8xl mb-6">😴</div>
+            <h2 class="text-3xl font-bold text-white mb-4">今天的游戏时间结束啦！</h2>
+            <p class="text-xl text-white/90 mb-6 leading-relaxed">
+                小眼睛要去看看窗外的绿色植物咯 🌳<br>
+                明天我们再来挑战吧！
+            </p>
+            <div class="text-6xl mb-4">🌈</div>
+            <p class="text-white/70 text-sm">每天 5 颗星星，玩完就要休息哦~</p>
+        </div>
+    </div>
+
+    <!-- ==================== 通关成功页面 ==================== -->
+    <div id="win-screen" class="hidden text-center">
+        <div class="bg-white/20 backdrop-blur-sm rounded-3xl p-8 max-w-md mx-auto shadow-2xl">
+            <div class="text-8xl mb-6">🎉</div>
+            <h2 class="text-3xl font-bold text-white mb-4">太棒啦！</h2>
+            <p class="text-xl text-white/90 mb-6">
+                你成功找到了所有的配对！<br>
+                记忆力真厉害！
+            </p>
+            <div id="win-stats" class="text-white mb-6"></div>
+            <button onclick="goToMenu()" class="game-btn bg-green-400 hover:bg-green-500 text-white font-bold py-3 px-8 rounded-full text-xl shadow-lg">
+                🏠 返回主菜单
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 游戏配置 ====================
+
+        // Emoji 主题池（可以自由添加或修改）
+        const EMOJI_POOL = {
+            // 恐龙主题
+            dinosaurs: ['🦖', '🦕', '🐲', '🦎', '🐊', '🐢', '🐍', '🐉'],
+            // 交通工具主题
+            vehicles: ['🚗', '🚀', '✈️', '🚂', '🚁', '⛵', '🚲', '🏎️'],
+            // 水果主题
+            fruits: ['🍎', '🍊', '🍋', '🍇', '🍓', '🍑', '🥝', '🍌'],
+            // 动物主题
+            animals: ['🐶', '🐱', '🐰', '🐻', '🐼', '🐨', '🦁', '🐸'],
+            // 食物主题
+            foods: ['🍕', '🍔', '🍩', '🧁', '🍦', '🍪', '🎂', '🍫'],
+            // 太空主题
+            space: ['🌟', '🌙', '☀️', '💫', '⭐', '🪐', '🌎', '☄️']
+        };
+
+        // 语音播报配置
+        const SPEECH_CONFIG = {
+            rate: 0.85,    // 语速（0.1 到 10）
+            pitch: 1.15,   // 音调（0 到 2）
+            volume: 1,     // 音量（0 到 1）
+            lang: 'zh-CN'  // 语言
+        };
+
+        // 游戏状态
+        let gameState = {
+            cards: [],              // 当前游戏的卡片数据
+            flippedCards: [],       // 当前翻开的卡片
+            matchedPairs: 0,        // 已匹配的对数
+            totalPairs: 0,          // 总共需要匹配的对数
+            combo: 0,               // 连续猜对次数
+            maxCombo: 0,            // 最大连击数
+            moves: 0,               // 翻牌次数
+            magnifierUsed: false,   // 放大镜是否已使用
+            isProcessing: false,    // 是否正在处理中（防乱点）
+            gameStarted: false,     // 游戏是否已开始
+            difficulty: 'easy'      // 难度
+        };
+
+        // ==================== 体力值系统 ====================
+
+        // 获取今天的日期字符串（用于 LocalStorage 键名）
+        function getTodayKey() {
+            const today = new Date();
+            return `memory_game_${today.getFullYear()}_${today.getMonth()}_${today.getDate()}`;
+        }
+
+        // 获取今天的剩余星星数
+        function getTodayStars() {
+            const key = getTodayKey();
+            const data = localStorage.getItem(key);
+            if (data === null) {
+                // 今天第一次玩，初始化 5 颗星星
+                localStorage.setItem(key, '5');
+                return 5;
+            }
+            return parseInt(data);
+        }
+
+        // 消耗一颗星星
+        function consumeStar() {
+            const key = getTodayKey();
+            let stars = getTodayStars();
+            if (stars > 0) {
+                stars--;
+                localStorage.setItem(key, stars.toString());
+            }
+            return stars;
+        }
+
+        // 更新星星显示
+        function updateStarsDisplay() {
+            const stars = getTodayStars();
+            for (let i = 0; i < 5; i++) {
+                const starEl = document.getElementById(`star-${i}`);
+                if (i < stars) {
+                    starEl.classList.remove('used');
+                } else {
+                    starEl.classList.add('used');
+                }
+            }
+        }
+
+        // ==================== 语音播报系统 ====================
+
+        // 语音播报函数
+        function speak(text) {
+            // 检查浏览器是否支持语音合成
+            if (!window.speechSynthesis) {
+                console.log('浏览器不支持语音合成');
+                return;
+            }
+
+            // 取消之前的语音
+            window.speechSynthesis.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = SPEECH_CONFIG.rate;
+            utterance.pitch = SPEECH_CONFIG.pitch;
+            utterance.volume = SPEECH_CONFIG.volume;
+            utterance.lang = SPEECH_CONFIG.lang;
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // ==================== 游戏初始化 ====================
+
+        // 检查是否还有星星
+        function checkStars() {
+            const stars = getTodayStars();
+            if (stars <= 0) {
+                showRestScreen();
+                return false;
+            }
+            return true;
+        }
+
+        // 显示休息页面
+        function showRestScreen() {
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('win-screen').classList.add('hidden');
+            document.getElementById('rest-screen').classList.remove('hidden');
+            speak('今天的10分钟游戏能量已经充满啦！小眼睛要去看看窗外的绿色植物咯，我们明天再见吧！');
+        }
+
+        // 显示游戏主界面
+        function showGameScreen() {
+            document.getElementById('game-screen').classList.remove('hidden');
+            document.getElementById('win-screen').classList.add('hidden');
+            document.getElementById('rest-screen').classList.add('hidden');
+        }
+
+        // 显示通关页面
+        function showWinScreen() {
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('rest-screen').classList.add('hidden');
+            document.getElementById('win-screen').classList.remove('hidden');
+
+            // 显示统计信息
+            const statsEl = document.getElementById('win-stats');
+            statsEl.innerHTML = `
+                <p class="text-lg mb-2">📊 本局统计</p>
+                <p>翻牌次数: ${gameState.moves}</p>
+                <p>最高连击: ${gameState.maxCombo} 🔥</p>
+            `;
+        }
+
+        // 返回主菜单
+        function goToMenu() {
+            showGameScreen();
+            resetGameState();
+            document.getElementById('difficulty-select').classList.remove('hidden');
+            document.getElementById('toolbar').classList.add('hidden');
+            document.getElementById('game-board').innerHTML = '';
+            updateStarsDisplay();
+        }
+
+        // 重置游戏状态
+        function resetGameState() {
+            gameState = {
+                cards: [],
+                flippedCards: [],
+                matchedPairs: 0,
+                totalPairs: 0,
+                combo: 0,
+                maxCombo: 0,
+                moves: 0,
+                magnifierUsed: false,
+                isProcessing: false,
+                gameStarted: false,
+                difficulty: 'easy'
+            };
+            document.getElementById('combo-display').classList.add('hidden');
+            document.getElementById('magnifier-btn').disabled = false;
+            document.getElementById('magnifier-btn').textContent = '🔍 放大镜 (1次)';
+        }
+
+        // ==================== 洗牌算法（Fisher-Yates） ====================
+        function shuffleArray(array) {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+        }
+
+        // ==================== 生成游戏卡片 ====================
+        function generateCards(pairCount) {
+            // 随机选择一个主题
+            const themes = Object.keys(EMOJI_POOL);
+            const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+            const themeEmojis = EMOJI_POOL[randomTheme];
+
+            // 从主题中随机选择指定数量的 Emoji
+            const selectedEmojis = shuffleArray(themeEmojis).slice(0, pairCount);
+
+            // 创建配对的卡片（每个 Emoji 出现两次）
+            const cards = [];
+            selectedEmojis.forEach((emoji, index) => {
+                cards.push({ id: index * 2, emoji: emoji, pairId: index });
+                cards.push({ id: index * 2 + 1, emoji: emoji, pairId: index });
+            });
+
+            return shuffleArray(cards);
+        }
+
+        // ==================== 开始游戏 ====================
+        function startGame(difficulty) {
+            // 检查星星
+            if (!checkStars()) return;
+
+            // 设置难度
+            gameState.difficulty = difficulty;
+
+            // 根据难度确定卡片数量
+            let cols, rows, pairCount;
+            if (difficulty === 'easy') {
+                cols = 4;
+                rows = 3;
+                pairCount = 6;
+            } else {
+                cols = 4;
+                rows = 4;
+                pairCount = 8;
+            }
+
+            gameState.totalPairs = pairCount;
+
+            // 消耗一颗星星
+            consumeStar();
+            updateStarsDisplay();
+
+            // 生成卡片
+            gameState.cards = generateCards(pairCount);
+
+            // 隐藏难度选择，显示工具栏
+            document.getElementById('difficulty-select').classList.add('hidden');
+            document.getElementById('toolbar').classList.remove('hidden');
+
+            // 渲染游戏盘面
+            renderBoard(cols, rows);
+
+            // 标记游戏开始
+            gameState.gameStarted = true;
+
+            // 语音播报
+            speak('小朋友，准备好挑战你的记忆力了吗？');
+        }
+
+        // ==================== 渲染游戏盘面 ====================
+        function renderBoard(cols, rows) {
+            const board = document.getElementById('game-board');
+            board.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            board.innerHTML = '';
+
+            gameState.cards.forEach((card, index) => {
+                const cardEl = document.createElement('div');
+                cardEl.className = 'card aspect-square';
+                cardEl.dataset.index = index;
+                cardEl.innerHTML = `
+                    <div class="card-inner">
+                        <div class="card-back"></div>
+                        <div class="card-front">${card.emoji}</div>
+                    </div>
+                `;
+                cardEl.addEventListener('click', () => flipCard(index));
+                board.appendChild(cardEl);
+            });
+        }
+
+        // ==================== 翻牌逻辑 ====================
+        function flipCard(index) {
+            // 各种状态检查
+            if (gameState.isProcessing) return;
+            if (!gameState.gameStarted) return;
+
+            const card = gameState.cards[index];
+            const cardEl = document.querySelectorAll('.card')[index];
+
+            // 检查卡片是否已经翻开或已匹配
+            if (cardEl.classList.contains('flipped') || cardEl.classList.contains('matched')) {
+                return;
+            }
+
+            // 检查是否已经翻开了两张
+            if (gameState.flippedCards.length >= 2) return;
+
+            // 翻开卡片
+            cardEl.classList.add('flipped');
+            gameState.flippedCards.push({ index, card, element: cardEl });
+            gameState.moves++;
+
+            // 如果翻开了两张，进行比对
+            if (gameState.flippedCards.length === 2) {
+                gameState.isProcessing = true;
+                showOverlay();
+
+                const [first, second] = gameState.flippedCards;
+
+                if (first.card.pairId === second.card.pairId) {
+                    // 匹配成功！
+                    handleMatch(first, second);
+                } else {
+                    // 匹配失败
+                    handleMismatch(first, second);
+                }
+            }
+        }
+
+        // ==================== 匹配成功处理 ====================
+        function handleMatch(first, second) {
+            // 增加连击数
+            gameState.combo++;
+            if (gameState.combo > gameState.maxCombo) {
+                gameState.maxCombo = gameState.combo;
+            }
+
+            // 更新连击显示
+            updateComboDisplay();
+
+            // 延迟标记为已匹配（让翻转动画完成）
+            setTimeout(() => {
+                first.element.classList.add('matched');
+                second.element.classList.add('matched');
+
+                // 清空翻开的卡片
+                gameState.flippedCards = [];
+                gameState.matchedPairs++;
+
+                // 检查是否胜利
+                if (gameState.matchedPairs === gameState.totalPairs) {
+                    handleWin();
+                } else {
+                    gameState.isProcessing = false;
+                    hideOverlay();
+                }
+
+                // 连击语音播报
+                if (gameState.combo >= 3) {
+                    speak('哇！连续猜对！你太棒啦！');
+                    showComboAnimation(gameState.combo);
+                }
+            }, 300);
+        }
+
+        // ==================== 匹配失败处理 ====================
+        function handleMismatch(first, second) {
+            // 重置连击
+            gameState.combo = 0;
+            updateComboDisplay();
+
+            // 1.2 秒后自动翻回
+            setTimeout(() => {
+                first.element.classList.remove('flipped');
+                second.element.classList.remove('flipped');
+                gameState.flippedCards = [];
+                gameState.isProcessing = false;
+                hideOverlay();
+            }, 1200);
+        }
+
+        // ==================== 通关处理 ====================
+        function handleWin() {
+            setTimeout(() => {
+                gameState.isProcessing = false;
+                hideOverlay();
+
+                // 播放庆祝音效
+                speak('太棒啦！你成功找到了所有的配对！记忆力真厉害！');
+
+                // 显示五彩纸屑
+                launchConfetti();
+
+                // 显示通关页面
+                setTimeout(() => {
+                    showWinScreen();
+                }, 2000);
+            }, 500);
+        }
+
+        // ==================== 显示/隐藏遮罩层 ====================
+        function showOverlay() {
+            document.getElementById('overlay').classList.add('active');
+        }
+
+        function hideOverlay() {
+            document.getElementById('overlay').classList.remove('active');
+        }
+
+        // ==================== 连击显示 ====================
+        function updateComboDisplay() {
+            const comboDisplay = document.getElementById('combo-display');
+            const comboCount = document.getElementById('combo-count');
+
+            if (gameState.combo >= 2) {
+                comboDisplay.classList.remove('hidden');
+                comboCount.textContent = gameState.combo;
+            } else {
+                comboDisplay.classList.add('hidden');
+            }
+        }
+
+        // 连击动画
+        function showComboAnimation(combo) {
+            const board = document.getElementById('game-board');
+            const comboText = document.createElement('div');
+            comboText.className = 'combo-text fixed text-4xl font-bold text-yellow-300 z-50';
+            comboText.style.left = '50%';
+            comboText.style.top = '50%';
+            comboText.style.transform = 'translate(-50%, -50%)';
+            comboText.textContent = `🔥 ${combo} 连击！`;
+            document.body.appendChild(comboText);
+
+            setTimeout(() => {
+                comboText.remove();
+            }, 1000);
+        }
+
+        // ==================== 放大镜道具 ====================
+        function useMagnifier() {
+            if (gameState.magnifierUsed) return;
+            if (gameState.isProcessing) return;
+
+            gameState.magnifierUsed = true;
+            gameState.isProcessing = true;
+
+            const magnifierBtn = document.getElementById('magnifier-btn');
+            magnifierBtn.disabled = true;
+            magnifierBtn.textContent = '🔍 已使用';
+
+            // 获取所有未匹配的卡片
+            const cards = document.querySelectorAll('.card:not(.matched)');
+
+            // 翻开所有未匹配的卡片
+            cards.forEach(card => {
+                card.classList.add('flipped', 'peeking');
+            });
+
+            // 1.5 秒后盖回去
+            setTimeout(() => {
+                cards.forEach(card => {
+                    card.classList.remove('flipped', 'peeking');
+                });
+                gameState.isProcessing = false;
+            }, 1500);
+        }
+
+        // ==================== 重新开始 ====================
+        function resetGame() {
+            if (!gameState.gameStarted) return;
+
+            // 重置状态（不消耗星星）
+            resetGameState();
+
+            // 重新开始当前难度
+            startGame(gameState.difficulty);
+        }
+
+        // ==================== 五彩纸屑效果 ====================
+        function launchConfetti() {
+            const canvas = document.getElementById('confetti-canvas');
+            const ctx = canvas.getContext('2d');
+
+            // 设置 canvas 大小
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            // 纸屑粒子数组
+            const particles = [];
+            const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ff8800', '#8800ff'];
+
+            // 创建粒子
+            for (let i = 0; i < 200; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height - canvas.height,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: Math.random() * 3 + 2,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    size: Math.random() * 8 + 4,
+                    rotation: Math.random() * 360,
+                    rotationSpeed: (Math.random() - 0.5) * 10
+                });
+            }
+
+            // 动画循环
+            let frame = 0;
+            const maxFrames = 180; // 约 3 秒
+
+            function animate() {
+                if (frame >= maxFrames) {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    return;
+                }
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                particles.forEach(p => {
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(p.rotation * Math.PI / 180);
+
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size / 2);
+
+                    ctx.restore();
+
+                    // 更新位置
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.1; // 重力
+                    p.rotation += p.rotationSpeed;
+
+                    // 边界检查
+                    if (p.y > canvas.height) {
+                        p.y = -10;
+                        p.x = Math.random() * canvas.width;
+                        p.vy = Math.random() * 3 + 2;
+                    }
+                });
+
+                frame++;
+                requestAnimationFrame(animate);
+            }
+
+            animate();
+        }
+
+        // ==================== 初始化游戏 ====================
+        function initGame() {
+            // 检查星星
+            if (!checkStars()) return;
+
+            // 更新星星显示
+            updateStarsDisplay();
+
+            // 显示游戏界面
+            showGameScreen();
+        }
+
+        // 页面加载完成后初始化
+        window.addEventListener('load', initGame);
+
+        // 处理窗口大小变化（纸屑效果）
+        window.addEventListener('resize', () => {
+            const canvas = document.getElementById('confetti-canvas');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>
