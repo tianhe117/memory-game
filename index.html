@@ -247,7 +247,11 @@
     <div id="game-screen" class="w-full max-w-2xl mx-auto">
         <!-- 顶部信息栏 -->
         <div class="flex justify-between items-center mb-4 px-2">
-            <!-- 体力值（星星） -->
+            <!-- 左侧：最佳次数（游戏时显示） -->
+            <div id="best-display" class="text-yellow-300 font-bold text-lg hidden">
+                🏆 最佳: <span id="current-best">-</span> 次
+            </div>
+            <!-- 中间：体力值（星星） -->
             <div id="stars-container" class="flex items-center gap-1">
                 <span class="text-white text-lg font-bold mr-2">体力:</span>
                 <span id="star-0" class="star">⭐</span>
@@ -256,30 +260,42 @@
                 <span id="star-3" class="star">⭐</span>
                 <span id="star-4" class="star">⭐</span>
             </div>
-            <!-- 翻牌次数显示 -->
+            <!-- 右侧：当前翻牌次数 -->
             <div id="moves-display" class="text-white font-bold text-lg hidden">
                 🃏 翻牌: <span id="moves-count">0</span> 次
             </div>
-            <!-- Combo 显示 -->
-            <div id="combo-display" class="text-yellow-300 font-bold text-lg hidden">
+            <!-- Combo 显示（浮动显示） -->
+            <div id="combo-display" class="text-yellow-300 font-bold text-lg hidden absolute left-1/2 top-20 -translate-x-1/2">
                 🔥 连击: <span id="combo-count">0</span>
             </div>
         </div>
 
         <!-- 难度选择 -->
         <div id="difficulty-select" class="flex flex-wrap justify-center gap-4 md:gap-6 mb-6 md:mb-8">
-            <button onclick="startGame('practice')" class="game-btn bg-blue-400 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
-                🎯 练习模式 (4×2)
-            </button>
-            <button onclick="startGame('easy')" class="game-btn bg-green-400 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
-                🌟 简单模式 (4×3)
-            </button>
-            <button onclick="startGame('hard')" class="game-btn bg-orange-400 hover:bg-orange-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
-                🚀 挑战模式 (4×4)
-            </button>
-            <button onclick="startGame('expert')" class="game-btn bg-red-400 hover:bg-red-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
-                💀 超级挑战 (6×4)
-            </button>
+            <div class="text-center">
+                <button onclick="startGame('practice')" class="game-btn bg-blue-400 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
+                    🎯 练习模式 (4×2)
+                </button>
+                <div id="best-practice" class="text-yellow-300 text-sm mt-1 h-5"></div>
+            </div>
+            <div class="text-center">
+                <button onclick="startGame('easy')" class="game-btn bg-green-400 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
+                    🌟 简单模式 (4×3)
+                </button>
+                <div id="best-easy" class="text-yellow-300 text-sm mt-1 h-5"></div>
+            </div>
+            <div class="text-center">
+                <button onclick="startGame('hard')" class="game-btn bg-orange-400 hover:bg-orange-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
+                    🚀 挑战模式 (4×4)
+                </button>
+                <div id="best-hard" class="text-yellow-300 text-sm mt-1 h-5"></div>
+            </div>
+            <div class="text-center">
+                <button onclick="startGame('expert')" class="game-btn bg-red-400 hover:bg-red-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
+                    💀 超级挑战 (6×4)
+                </button>
+                <div id="best-expert" class="text-yellow-300 text-sm mt-1 h-5"></div>
+            </div>
         </div>
 
         <!-- 游戏卡片区域 -->
@@ -374,8 +390,49 @@
             moves: 0,               // 翻牌次数
             isProcessing: false,    // 是否正在处理中（防乱点）
             gameStarted: false,     // 游戏是否已开始
-            difficulty: 'easy'      // 难度
+            difficulty: 'easy',     // 难度
+            isNewRecord: false      // 是否刷新记录
         };
+
+        // ==================== 最高分系统 ====================
+
+        // 难度配置
+        const DIFFICULTY_CONFIG = {
+            practice: { pairs: 4, label: '练习模式' },
+            easy: { pairs: 6, label: '简单模式' },
+            hard: { pairs: 8, label: '挑战模式' },
+            expert: { pairs: 12, label: '超级挑战' }
+        };
+
+        // 获取某个难度的最高分
+        function getBestScore(difficulty) {
+            const key = `memory_game_best_${difficulty}`;
+            const data = localStorage.getItem(key);
+            return data ? parseInt(data) : null;
+        }
+
+        // 保存最高分（只有更少的翻牌次数才更新）
+        function saveBestScore(difficulty, moves) {
+            const currentBest = getBestScore(difficulty);
+            if (currentBest === null || moves < currentBest) {
+                const key = `memory_game_best_${difficulty}`;
+                localStorage.setItem(key, moves.toString());
+                return true; // 刷新记录
+            }
+            return false;
+        }
+
+        // 更新难度选择页面的最高分显示
+        function updateBestScoresDisplay() {
+            const difficulties = ['practice', 'easy', 'hard', 'expert'];
+            difficulties.forEach(diff => {
+                const bestEl = document.getElementById(`best-${diff}`);
+                if (bestEl) {
+                    const best = getBestScore(diff);
+                    bestEl.textContent = best ? `🏆 最佳: ${best}次` : '';
+                }
+            });
+        }
 
         // ==================== 体力值系统 ====================
 
@@ -595,10 +652,15 @@
 
             // 显示统计信息
             const statsEl = document.getElementById('win-stats');
+            const recordText = gameState.isNewRecord
+                ? '<p class="text-yellow-300 text-xl font-bold mb-2">🏆 新纪录！</p>'
+                : `<p class="text-white/70 text-sm mb-2">当前最佳: ${getBestScore(gameState.difficulty)} 次</p>`;
+
             statsEl.innerHTML = `
                 <p class="text-lg mb-2">📊 本局统计</p>
                 <p>翻牌次数: ${gameState.moves}</p>
                 <p>最高连击: ${gameState.maxCombo} 🔥</p>
+                ${recordText}
             `;
         }
 
@@ -610,6 +672,7 @@
             document.getElementById('toolbar').classList.add('hidden');
             document.getElementById('game-board').innerHTML = '';
             updateStarsDisplay();
+            updateBestScoresDisplay();
         }
 
         // 重置游戏状态
@@ -624,10 +687,12 @@
                 moves: 0,
                 isProcessing: false,
                 gameStarted: false,
-                difficulty: 'easy'
+                difficulty: 'easy',
+                isNewRecord: false
             };
             document.getElementById('combo-display').classList.add('hidden');
             document.getElementById('moves-display').classList.add('hidden');
+            document.getElementById('best-display').classList.add('hidden');
             document.getElementById('moves-count').textContent = '0';
         }
 
@@ -708,6 +773,13 @@
             document.getElementById('difficulty-select').classList.add('hidden');
             document.getElementById('toolbar').classList.remove('hidden');
             document.getElementById('moves-display').classList.remove('hidden');
+
+            // 显示当前难度的最佳次数
+            const bestDisplay = document.getElementById('best-display');
+            const currentBestEl = document.getElementById('current-best');
+            const best = getBestScore(difficulty);
+            currentBestEl.textContent = best || '-';
+            bestDisplay.classList.remove('hidden');
 
             // 渲染游戏盘面
             renderBoard(cols, rows);
@@ -838,8 +910,20 @@
                 gameState.isProcessing = false;
                 hideOverlay();
 
+                // 检查并保存最高分
+                gameState.isNewRecord = saveBestScore(gameState.difficulty, gameState.moves);
+
+                // 如果刷新记录，更新左上角显示
+                if (gameState.isNewRecord) {
+                    document.getElementById('current-best').textContent = gameState.moves;
+                }
+
                 // 播放庆祝音效
-                speak('太棒啦！你成功找到了所有的配对！记忆力真厉害！');
+                if (gameState.isNewRecord) {
+                    speak('太棒啦！你刷新了最佳记录！记忆力真厉害！');
+                } else {
+                    speak('太棒啦！你成功找到了所有的配对！记忆力真厉害！');
+                }
 
                 // 显示五彩纸屑
                 launchConfetti();
@@ -967,6 +1051,9 @@
 
             // 更新星星显示
             updateStarsDisplay();
+
+            // 更新最高分显示
+            updateBestScoresDisplay();
 
             // 显示游戏界面
             showGameScreen();
