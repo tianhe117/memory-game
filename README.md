@@ -21,7 +21,9 @@
 
 ## 🚀 在线体验
 
-直接打开 `index.html` 即可游玩，或访问 GitHub Pages 部署地址。
+👉 **https://tianhe117.github.io/memory-game/**
+
+或直接打开本地 `index.html` 即可游玩。
 
 ## 📦 技术栈
 
