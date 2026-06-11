@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>🧠 记忆力大冒险</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -123,6 +123,12 @@
             transition: all 0.3s ease;
         }
 
+        @media (min-width: 768px) {
+            .star {
+                font-size: 2.5rem;
+            }
+        }
+
         .star.used {
             filter: grayscale(1);
             opacity: 0.4;
@@ -169,7 +175,34 @@
             cursor: not-allowed;
         }
 
+        /* ========== 游戏盘面响应式 ========== */
+        @media (min-width: 768px) {
+            #game-board {
+                max-width: 600px !important;
+                gap: 1rem;
+            }
+        }
+
+        /* ========== 触摸设备优化 ========== */
+        @media (hover: none) {
+            .card:hover:not(.flipped):not(.matched) {
+                transform: none;
+            }
+            .card:active:not(.flipped):not(.matched) {
+                transform: scale(0.95);
+            }
+            .game-btn:hover:not(:disabled) {
+                transform: none;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            }
+            .game-btn:active:not(:disabled) {
+                transform: scale(0.95);
+            }
+        }
+
         /* ========== 响应式卡片大小 ========== */
+
+        /* 手机端 */
         @media (max-width: 480px) {
             .card-front {
                 font-size: 2.5rem;
@@ -178,9 +211,33 @@
                 font-size: 1.8rem;
             }
         }
+
+        /* 平板端 (iPad 等) */
+        @media (min-width: 768px) and (max-width: 1200px) {
+            .card-front {
+                font-size: 5rem;
+            }
+            .card-back::after {
+                font-size: 3.5rem;
+            }
+            .game-btn {
+                font-size: 1.25rem;
+                padding: 1rem 2rem;
+            }
+        }
+
+        /* 大平板/桌面端 */
+        @media (min-width: 1200px) {
+            .card-front {
+                font-size: 6rem;
+            }
+            .card-back::after {
+                font-size: 4rem;
+            }
+        }
     </style>
 </head>
-<body class="flex flex-col items-center justify-center min-h-screen p-4">
+<body class="flex flex-col items-center justify-center min-h-screen p-4 md:p-8">
 
     <!-- 防乱点遮罩层 -->
     <div id="overlay" class="overlay"></div>
@@ -189,7 +246,7 @@
     <canvas id="confetti-canvas"></canvas>
 
     <!-- ==================== 游戏主界面 ==================== -->
-    <div id="game-screen" class="w-full max-w-lg mx-auto">
+    <div id="game-screen" class="w-full max-w-2xl mx-auto">
         <!-- 顶部信息栏 -->
         <div class="flex justify-between items-center mb-4 px-2">
             <!-- 体力值（星星） -->
@@ -208,7 +265,7 @@
         </div>
 
         <!-- 难度选择 -->
-        <div id="difficulty-select" class="flex justify-center gap-4 mb-6">
+        <div id="difficulty-select" class="flex flex-wrap justify-center gap-4 md:gap-6 mb-6 md:mb-8">
             <button onclick="startGame('easy')" class="game-btn bg-green-400 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
                 🌟 简单模式 (4×3)
             </button>
@@ -218,12 +275,12 @@
         </div>
 
         <!-- 游戏卡片区域 -->
-        <div id="game-board" class="grid gap-3 mb-6 mx-auto" style="max-width: 400px;">
+        <div id="game-board" class="grid gap-4 mb-6 mx-auto w-full" style="max-width: 500px;">
             <!-- 卡片由 JS 动态生成 -->
         </div>
 
         <!-- 底部工具栏 -->
-        <div id="toolbar" class="flex justify-center gap-4 hidden">
+        <div id="toolbar" class="flex justify-center gap-4 md:gap-6 hidden">
             <button id="magnifier-btn" onclick="useMagnifier()" class="game-btn bg-purple-400 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
                 🔍 放大镜 (1次)
             </button>
@@ -235,9 +292,9 @@
 
     <!-- ==================== 休息页面（体力耗尽） ==================== -->
     <div id="rest-screen" class="hidden text-center">
-        <div class="bg-white/20 backdrop-blur-sm rounded-3xl p-8 max-w-md mx-auto shadow-2xl">
-            <div class="text-8xl mb-6">😴</div>
-            <h2 class="text-3xl font-bold text-white mb-4">今天的游戏时间结束啦！</h2>
+        <div class="bg-white/20 backdrop-blur-sm rounded-3xl p-8 md:p-12 max-w-lg mx-auto shadow-2xl">
+            <div class="text-8xl md:text-9xl mb-6">😴</div>
+            <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">今天的游戏时间结束啦！</h2>
             <p class="text-xl text-white/90 mb-6 leading-relaxed">
                 小眼睛要去看看窗外的绿色植物咯 🌳<br>
                 明天我们再来挑战吧！
@@ -249,9 +306,9 @@
 
     <!-- ==================== 通关成功页面 ==================== -->
     <div id="win-screen" class="hidden text-center">
-        <div class="bg-white/20 backdrop-blur-sm rounded-3xl p-8 max-w-md mx-auto shadow-2xl">
-            <div class="text-8xl mb-6">🎉</div>
-            <h2 class="text-3xl font-bold text-white mb-4">太棒啦！</h2>
+        <div class="bg-white/20 backdrop-blur-sm rounded-3xl p-8 md:p-12 max-w-lg mx-auto shadow-2xl">
+            <div class="text-8xl md:text-9xl mb-6">🎉</div>
+            <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">太棒啦！</h2>
             <p class="text-xl text-white/90 mb-6">
                 你成功找到了所有的配对！<br>
                 记忆力真厉害！
