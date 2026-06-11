@@ -114,17 +114,6 @@
             display: block;
         }
 
-        /* ========== 放大镜闪烁动画 ========== */
-        .card.peeking .card-inner {
-            animation: peekFlash 1.5s ease-in-out;
-        }
-
-        @keyframes peekFlash {
-            0%, 100% { transform: rotateY(180deg); }
-            25%, 75% { transform: rotateY(180deg) scale(1.1); }
-            50% { transform: rotateY(180deg) scale(1); opacity: 0.8; }
-        }
-
         /* ========== 星星样式 ========== */
         .star {
             display: inline-block;
@@ -267,6 +256,10 @@
                 <span id="star-3" class="star">⭐</span>
                 <span id="star-4" class="star">⭐</span>
             </div>
+            <!-- 翻牌次数显示 -->
+            <div id="moves-display" class="text-white font-bold text-lg hidden">
+                🃏 翻牌: <span id="moves-count">0</span> 次
+            </div>
             <!-- Combo 显示 -->
             <div id="combo-display" class="text-yellow-300 font-bold text-lg hidden">
                 🔥 连击: <span id="combo-count">0</span>
@@ -284,6 +277,9 @@
             <button onclick="startGame('hard')" class="game-btn bg-orange-400 hover:bg-orange-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
                 🚀 挑战模式 (4×4)
             </button>
+            <button onclick="startGame('expert')" class="game-btn bg-red-400 hover:bg-red-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
+                💀 超级挑战 (6×4)
+            </button>
         </div>
 
         <!-- 游戏卡片区域 -->
@@ -293,11 +289,8 @@
 
         <!-- 底部工具栏 -->
         <div id="toolbar" class="flex justify-center gap-4 md:gap-6 hidden">
-            <button id="magnifier-btn" onclick="useMagnifier()" class="game-btn bg-purple-400 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
-                🔍 放大镜 (1次)
-            </button>
-            <button onclick="resetGame()" class="game-btn bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
-                🔄 重新开始
+            <button onclick="goToMenu()" class="game-btn bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
+                🔙 返回选择难度
             </button>
         </div>
     </div>
@@ -352,8 +345,6 @@
 
         // Emoji 主题池（可以自由添加或修改）
         const EMOJI_POOL = {
-            // 恐龙主题
-            dinosaurs: ['🦖', '🦕', '🐲', '🦎', '🐊', '🐢', '🐍', '🐉'],
             // 交通工具主题
             vehicles: ['🚗', '🚀', '✈️', '🚂', '🚁', '⛵', '🚲', '🏎️'],
             // 水果主题
@@ -361,9 +352,7 @@
             // 动物主题
             animals: ['🐶', '🐱', '🐰', '🐻', '🐼', '🐨', '🦁', '🐸'],
             // 食物主题
-            foods: ['🍕', '🍔', '🍩', '🧁', '🍦', '🍪', '🎂', '🍫'],
-            // 太空主题
-            space: ['🌟', '🌙', '☀️', '💫', '⭐', '🪐', '🌎', '☄️']
+            foods: ['🍕', '🍔', '🍩', '🧁', '🍦', '🍪', '🎂', '🍫']
         };
 
         // 语音播报配置
@@ -383,7 +372,6 @@
             combo: 0,               // 连续猜对次数
             maxCombo: 0,            // 最大连击数
             moves: 0,               // 翻牌次数
-            magnifierUsed: false,   // 放大镜是否已使用
             isProcessing: false,    // 是否正在处理中（防乱点）
             gameStarted: false,     // 游戏是否已开始
             difficulty: 'easy'      // 难度
@@ -634,14 +622,13 @@
                 combo: 0,
                 maxCombo: 0,
                 moves: 0,
-                magnifierUsed: false,
                 isProcessing: false,
                 gameStarted: false,
                 difficulty: 'easy'
             };
             document.getElementById('combo-display').classList.add('hidden');
-            document.getElementById('magnifier-btn').disabled = false;
-            document.getElementById('magnifier-btn').textContent = '🔍 放大镜 (1次)';
+            document.getElementById('moves-display').classList.add('hidden');
+            document.getElementById('moves-count').textContent = '0';
         }
 
         // ==================== 洗牌算法（Fisher-Yates） ====================
@@ -661,8 +648,13 @@
             const randomTheme = themes[Math.floor(Math.random() * themes.length)];
             const themeEmojis = EMOJI_POOL[randomTheme];
 
-            // 从主题中随机选择指定数量的 Emoji
-            const selectedEmojis = shuffleArray(themeEmojis).slice(0, pairCount);
+            // 从主题中选择 Emoji，如果需要的对数超过主题数量，则重复使用
+            let selectedEmojis = [];
+            while (selectedEmojis.length < pairCount) {
+                const shuffled = shuffleArray(themeEmojis);
+                selectedEmojis = selectedEmojis.concat(shuffled);
+            }
+            selectedEmojis = selectedEmojis.slice(0, pairCount);
 
             // 创建配对的卡片（每个 Emoji 出现两次）
             const cards = [];
@@ -692,10 +684,15 @@
                 cols = 4;
                 rows = 3;
                 pairCount = 6;
-            } else {
+            } else if (difficulty === 'hard') {
                 cols = 4;
                 rows = 4;
                 pairCount = 8;
+            } else {
+                // expert: 6×4 = 24张卡 = 12对
+                cols = 6;
+                rows = 4;
+                pairCount = 12;
             }
 
             gameState.totalPairs = pairCount;
@@ -707,9 +704,10 @@
             // 生成卡片
             gameState.cards = generateCards(pairCount);
 
-            // 隐藏难度选择，显示工具栏
+            // 隐藏难度选择，显示工具栏和翻牌次数
             document.getElementById('difficulty-select').classList.add('hidden');
             document.getElementById('toolbar').classList.remove('hidden');
+            document.getElementById('moves-display').classList.remove('hidden');
 
             // 渲染游戏盘面
             renderBoard(cols, rows);
@@ -763,6 +761,7 @@
             cardEl.classList.add('flipped');
             gameState.flippedCards.push({ index, card, element: cardEl });
             gameState.moves++;
+            document.getElementById('moves-count').textContent = gameState.moves;
 
             // 如果翻开了两张，进行比对
             if (gameState.flippedCards.length === 2) {
@@ -890,45 +889,6 @@
             }, 1000);
         }
 
-        // ==================== 放大镜道具 ====================
-        function useMagnifier() {
-            if (gameState.magnifierUsed) return;
-            if (gameState.isProcessing) return;
-
-            gameState.magnifierUsed = true;
-            gameState.isProcessing = true;
-
-            const magnifierBtn = document.getElementById('magnifier-btn');
-            magnifierBtn.disabled = true;
-            magnifierBtn.textContent = '🔍 已使用';
-
-            // 获取所有未匹配的卡片
-            const cards = document.querySelectorAll('.card:not(.matched)');
-
-            // 翻开所有未匹配的卡片
-            cards.forEach(card => {
-                card.classList.add('flipped', 'peeking');
-            });
-
-            // 1.5 秒后盖回去
-            setTimeout(() => {
-                cards.forEach(card => {
-                    card.classList.remove('flipped', 'peeking');
-                });
-                gameState.isProcessing = false;
-            }, 1500);
-        }
-
-        // ==================== 重新开始 ====================
-        function resetGame() {
-            if (!gameState.gameStarted) return;
-
-            // 重置状态（不消耗星星）
-            resetGameState();
-
-            // 重新开始当前难度
-            startGame(gameState.difficulty);
-        }
 
         // ==================== 五彩纸屑效果 ====================
         function launchConfetti() {
