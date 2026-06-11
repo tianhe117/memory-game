@@ -266,6 +266,9 @@
 
         <!-- 难度选择 -->
         <div id="difficulty-select" class="flex flex-wrap justify-center gap-4 md:gap-6 mb-6 md:mb-8">
+            <button onclick="startGame('practice')" class="game-btn bg-blue-400 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
+                🎯 练习模式 (4×2)
+            </button>
             <button onclick="startGame('easy')" class="game-btn bg-green-400 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-full text-lg shadow-lg">
                 🌟 简单模式 (4×3)
             </button>
@@ -540,7 +543,11 @@
 
             // 根据难度确定卡片数量
             let cols, rows, pairCount;
-            if (difficulty === 'easy') {
+            if (difficulty === 'practice') {
+                cols = 4;
+                rows = 2;
+                pairCount = 4;
+            } else if (difficulty === 'easy') {
                 cols = 4;
                 rows = 3;
                 pairCount = 6;
