@@ -714,18 +714,28 @@
             const themeEmojis = EMOJI_POOL[randomTheme];
 
             // 从主题中选择 Emoji，如果需要的对数超过主题数量，则重复使用
+            // 使用 Map 记录每个 emoji 的 pairId，确保相同 emoji 共享同一个 pairId
+            const emojiPairMap = new Map(); // emoji -> pairId
             let selectedEmojis = [];
+            let pairIdCounter = 0;
+
             while (selectedEmojis.length < pairCount) {
                 const shuffled = shuffleArray(themeEmojis);
-                selectedEmojis = selectedEmojis.concat(shuffled);
+                for (const emoji of shuffled) {
+                    if (selectedEmojis.length >= pairCount) break;
+                    if (!emojiPairMap.has(emoji)) {
+                        emojiPairMap.set(emoji, pairIdCounter++);
+                    }
+                    selectedEmojis.push(emoji);
+                }
             }
-            selectedEmojis = selectedEmojis.slice(0, pairCount);
 
             // 创建配对的卡片（每个 Emoji 出现两次）
             const cards = [];
             selectedEmojis.forEach((emoji, index) => {
-                cards.push({ id: index * 2, emoji: emoji, pairId: index });
-                cards.push({ id: index * 2 + 1, emoji: emoji, pairId: index });
+                const pairId = emojiPairMap.get(emoji);
+                cards.push({ id: index * 2, emoji: emoji, pairId: pairId });
+                cards.push({ id: index * 2 + 1, emoji: emoji, pairId: pairId });
             });
 
             return shuffleArray(cards);
